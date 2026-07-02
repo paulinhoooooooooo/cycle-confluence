@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 import numpy as np
 from rich.console import Console
@@ -59,8 +60,14 @@ def parse_args() -> argparse.Namespace:
 
 
 def pick_combo(prices: np.ndarray, cycles_arg: str | None):
-    """Sélectionne la combinaison : imposée par --cycles, sinon meilleure auto."""
-    all_cycles = detect_cycles(prices, n_cycles=25)
+    """Sélectionne la combinaison : imposée par --cycles, sinon meilleure auto.
+
+    En mode auto, les périodes sont plafonnées à N/4 : un cycle doit se
+    répéter au moins ~4 fois pour être statistiquement crédible ET rester
+    validable par walk-forward (fenêtre d'apprentissage = 3x la période).
+    """
+    max_p = len(prices) // 4 if not cycles_arg else None
+    all_cycles = detect_cycles(prices, n_cycles=25, max_period=max_p)
     if not all_cycles:
         console.print("[red]Aucun cycle détecté.[/red]")
         sys.exit(1)
@@ -220,14 +227,21 @@ def main() -> None:
         f"Verdict : [{style}]{result.verdict}[/{style}]",
         title="CONFLUENCE", border_style=style.split()[-1]))
 
+    if wf.n_bull_signals == 0:
+        console.print(
+            "[yellow]⚠ 0 signal haussier hors échantillon : la combinaison est "
+            "invérifiable (périodes trop longues pour l'historique). "
+            "Essayez --period 10y ou des périodes plus courtes.[/yellow]")
     for wmsg in result.warnings:
         console.print(f"[yellow]⚠ {wmsg}[/yellow]")
 
     if args.html:
+        import webbrowser
         from reporting.html_report import generate_report
         path = generate_report(args.ticker, prices, combo, wf, result,
                                persistence, ext_detail)
-        console.print(f"[dim]Rapport HTML : {path}[/dim]")
+        console.print(f"[dim]Rapport HTML : {path} (ouverture dans le navigateur…)[/dim]")
+        webbrowser.open(Path(path).resolve().as_uri())
 
     console.print("\n[dim]Outil d'aide à la décision — pas un conseil en investissement.[/dim]")
 

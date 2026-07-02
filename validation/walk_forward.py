@@ -115,12 +115,17 @@ def walk_forward_validate(
     #  - hit rate OOS (base)
     #  - pénalité si peu de signaux (< 30 : peu significatif statistiquement)
     #  - pénalité si forte dégradation IS -> OOS (> 20 pts : sur-ajustement)
-    score = hit
-    if n_bull < 30:
-        score *= 0.6 + 0.4 * (n_bull / 30)
-    if degradation is not None and degradation > 20:
-        score *= max(0.5, 1 - (degradation - 20) / 60)
-    score = round(min(100.0, max(0.0, score)), 1)
+    if n_bull == 0:
+        # INVÉRIFIABLE, pas invalidé : périodes trop longues pour l'historique
+        # ou zone haussière jamais atteinte hors échantillon. Score neutre bas.
+        score = 30.0
+    else:
+        score = hit
+        if n_bull < 30:
+            score *= 0.6 + 0.4 * (n_bull / 30)
+        if degradation is not None and degradation > 20:
+            score *= max(0.5, 1 - (degradation - 20) / 60)
+        score = round(min(100.0, max(0.0, score)), 1)
 
     return WalkForwardResult(
         periods=list(periods),
